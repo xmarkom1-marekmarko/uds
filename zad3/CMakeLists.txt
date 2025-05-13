@@ -9,20 +9,33 @@ endif()
 # Find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
 # Add executable
-add_executable(wasd_teleop_node src/keyboardPublisher.cpp)
+add_executable(states_from_keyboard_node src/statesFromKeyboard.cpp)
+add_executable(states_node src/statesNode.cpp)
 
 # Link dependencies
-ament_target_dependencies(wasd_teleop_node
+ament_target_dependencies(states_from_keyboard_node
   rclcpp
+  std_msgs
+)
+
+ament_target_dependencies(states_node
+  rclcpp
+  sensor_msgs
+  nav_msgs
   geometry_msgs
+  std_msgs
 )
 
 # Install
 install(TARGETS
-  wasd_teleop_node
+  states_from_keyboard_node
+  states_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -35,3 +48,6 @@ if(BUILD_TESTING)
 endif()
 
 ament_package()
+
+
+

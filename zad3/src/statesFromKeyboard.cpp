@@ -16,7 +16,7 @@ int main(int argc, char * argv[])
         if (std::cin.fail()||(input<0)||(input>3)) {
             std::cin.clear();
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-            std::cout << "Invalid input. Please enter an integer.\n";
+            RCLCPP_WARN(node->get_logger(), "Invalid input. Please enter an integer between 1 and 3.");
             continue;
         }
 
@@ -25,6 +25,9 @@ int main(int argc, char * argv[])
 
         RCLCPP_INFO(node->get_logger(), "Publishing: '%d'", msg.data);
         publisher->publish(msg);
+
+        rclcpp::Rate rate(10);
+        rate.sleep();
     }
 
     rclcpp::shutdown();
