@@ -37,7 +37,7 @@ public:
 
             plt::clf();  // Clear previous plot
             plt::xlim(std::max(0.0, t.empty() ? 0.0 : t.back() - 10), t.empty() ? 10 : t.back());
-            plt::ylim(-10, 10);  // Customize as needed
+            plt::ylim(0, 10);  // Customize as needed
             plt::plot(t, y);
             plt::grid(true);
             plt::pause(0.1);

@@ -223,19 +223,19 @@ private:
                 std::cout << "State 3: Automatic control" << std::endl;
             }
             else {
-                if (ranges[0] > distance && ranges[14] > distance + 0.3 && ranges[256] > distance + 0.3) {
-                    if (ranges[33] > distance || ranges[237] > distance) {
-                        if (ranges[0] <= ranges[33]) {
+                if (ranges[0] > distance && ranges[ranges.size()/16] > distance + 0.3 && ranges[15*ranges.size()/16] > distance + 0.3) {
+                    if (ranges[ranges.size()/16] > distance || ranges[15*ranges.size()/16] > distance) {
+                        if (ranges[0] <= ranges[ranges.size()/16]) {
                             //msg1.angular.z = this->angularVelocity; DO NOTHING
                         }
-                        else if (ranges[0] <= ranges[237]) {
+                        else if (ranges[0] <= ranges[15*ranges.size()/16]) {
                             angular_z = -(angular_z) + 1.0;
                         }
                     }
 
                     RCLCPP_INFO(this->get_logger(), "ranges[0] %f, distance: %f", ranges[0], distance);
 
-                    turn = false;
+                    rotate = false;
                     indexLeft = ranges[ranges.size()/8];
                     indexRight = ranges[3*ranges.size()/8];
 
@@ -246,10 +246,10 @@ private:
                 else {
                     traveledDistance += 0.0 * time_increment;
                     publishCmdVelLinX(0.0);
-                    turn = true;
+                    rotate = true;
                 }
 
-                if (turn)
+                if (rotate)
                 {
                     if (indexLeft > indexRight)
                     {
@@ -260,13 +260,13 @@ private:
 
                         if (ranges[ranges.size()/4] >= distance + 0.1 || ranges[ranges.size() / 4] == 0) {
                             //msg1.angular.z = this->angularVelocity;
-                            RCLCPP_INFO(this->get_logger(), "msg.ranges at 90°: %f", ranges[67]);
+                            RCLCPP_INFO(this->get_logger(), "msg.ranges 90 deg: %f", ranges[ranges.size()/4]);
                             traveledDistance += linear_x * time_increment;
                             publishCmdVel(angular_z, linear_x);
                         }
                         else {
-                            turn = false;
-                            RCLCPP_INFO(this->get_logger(), "turn %d", turn);
+                            rotate = false;
+                            RCLCPP_INFO(this->get_logger(), "rotate %d", rotate);
                         }
                     }
 
@@ -282,19 +282,16 @@ private:
                         if (ranges[3 * ranges.size() / 4] >= distance + 0.1 || ranges[3 * ranges.size() / 4] == 0){
 
                             angular_z = -(angular_z);
-                            RCLCPP_INFO(this->get_logger(), "msg.ranges at elif 90°: %f", ranges[67]);
+                            RCLCPP_INFO(this->get_logger(), "msg.ranges 90deg: %f", ranges[ranges.size()/4]);
 
                             traveledDistance += linear_x * time_increment;
                             publishCmdVel(angular_z, linear_x);
                         }
                         else{
-                            turn = false;
+                            rotate = false;
                         }
                     }
                 }
-
-                RCLCPP_INFO(this->get_logger(), "Celebration time: \"%d\"", state);
-
             }
 
         }
@@ -342,6 +339,7 @@ private:
         // Update total distance traveled
         tmpdistance = std::sqrt(dx * dx + dy * dy);
         total_distance += tmpdistance;
+        RCLCPP_WARN(this->get_logger(), "total distance %f", total_distance);
         publishMatplotlib(total_distance);
     }    
     
@@ -402,7 +400,7 @@ private:
     bool edge_state_2 = false;
     bool edge_state_3 = false;
 
-    bool turn = false;
+    bool rotate = false;
 
     float distance = 0.5;
 
@@ -553,7 +551,7 @@ geometry_msgs/TwistWithCovariance twist
                     RCLCPP_INFO(this->get_logger(), "msg.ranges[0]: %f", msg->ranges[0]);
                     RCLCPP_INFO(this->get_logger(), "distance: %f", distance);
 
-                    this->turn = false;
+                    this->rotate = false;
                     this->right = false;
                     this->left = false;
 
@@ -569,10 +567,10 @@ geometry_msgs/TwistWithCovariance twist
                     msg1.linear.x = 0.0;
                     this->totalDistance += msg1.linear.x * msg->time_increment;
                     this->publisher_->publish(msg1);
-                    this->turn = true;
+                    this->rotate = true;
                 }
 
-                if (this->turn)
+                if (this->rotate)
                 {
                     if (this->savedMsgLeft > this->savedMsgRight)
                     {
@@ -592,8 +590,8 @@ geometry_msgs/TwistWithCovariance twist
                         }
                         else
                         {
-                            this->turn = false;
-                            RCLCPP_INFO(this->get_logger(), "THE STATE OF FALSE IS: %d", this->turn);
+                            this->rotate = false;
+                            RCLCPP_INFO(this->get_logger(), "THE STATE OF FALSE IS: %d", this->rotate);
                         }
                     }
 
@@ -617,7 +615,7 @@ geometry_msgs/TwistWithCovariance twist
                         }
                         else
                         {
-                            this->turn = false;
+                            this->rotate = false;
                         }
                     }
                 }
