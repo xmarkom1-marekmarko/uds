@@ -25,9 +25,8 @@ int main(int argc, char * argv[])
 
         RCLCPP_INFO(node->get_logger(), "Publishing: '%d'", msg.data);
         publisher->publish(msg);
-
-        rclcpp::Rate rate(10);
-        rate.sleep();
+        //rclcpp::Rate rate(10);
+        //rate.sleep();
     }
 
     rclcpp::shutdown();

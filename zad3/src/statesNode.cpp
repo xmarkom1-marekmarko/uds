@@ -3,13 +3,13 @@
 #include <sensor_msgs/msg/laser_scan.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <std_msgs/msg/int32.hpp>
+#include <std_msgs/msg/float32.hpp>
 #include <iostream>
 #include <termios.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <vector>
 // #include <cmath>
- using namespace std;
 
 class StatesNode : public rclcpp::Node
 {
@@ -24,6 +24,8 @@ public:
         odom_subscriber = this->create_subscription<nav_msgs::msg::Odometry>("/odom", 10, std::bind(&StatesNode::odomCallback, this, std::placeholders::_1));
         // Publisher for /cmd_vel topic
         cmd_vel_publisher = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 10);
+        // Publisher for /float_topic
+        matplotlib_publisher = this->create_publisher<std_msgs::msg::Float32>("float_topic", 10);
 
         using namespace std::chrono_literals;
         timer = this->create_wall_timer( 100ms, std::bind(&StatesNode::motionCallback, this));
@@ -32,28 +34,31 @@ public:
 private:
     void intCallback(const std_msgs::msg::Int32::SharedPtr msg)
     {
-        RCLCPP_INFO(this->get_logger(), "RCVNG /int_topic: %d", msg->data);
+        if(init_intCallback){RCLCPP_INFO(this->get_logger(), "RCVNG /int_topic: %d", msg->data);}
+        init_intCallback = false;
         state = msg->data; //state is an integer from <1; 3>
     }    
 
     void scanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg)
     {
-        RCLCPP_INFO(this->get_logger(), "RCVNG /scan");
+        if(init_scanCallback){RCLCPP_INFO(this->get_logger(), "RCVNG /scan");}
+        init_scanCallback = false;
         ranges = msg->ranges; //data of distances
-        auto intensities = msg->intensities; //data of intensities
-        auto angle_min = msg->angle_min; //angle of the first ray
-        auto angle_max = msg->angle_max; //angle of the last ray
-        auto angle_increment = msg->angle_increment; //angle between rays
+        //auto intensities = msg->intensities; //data of intensities
+        //auto angle_min = msg->angle_min; //angle of the first ray
+        //auto angle_max = msg->angle_max; //angle of the last ray
+        //auto angle_increment = msg->angle_increment; //angle between rays
         time_increment = msg->time_increment; //time between measurements
     }
 
     void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg)
     {
-        RCLCPP_INFO(this->get_logger(), "RCVNG /odom");
-        auto pos = msg->pose.pose.position; //pos.x, pos.y, pos.z
-        auto ori = msg->pose.pose.orientation; //ori.x, ori.y, ori.z, ori.w
-        auto lin = msg->twist.twist.linear; //lin.x, lin.y, lin.z
-        auto ang = msg->twist.twist.angular; //ang.x, ang.y, ang.z
+        if(init_odomCallback){RCLCPP_INFO(this->get_logger(), "RCVNG /odom");}
+        init_odomCallback = false;
+        //auto pos = msg->pose.pose.position; //pos.x, pos.y, pos.z
+        //auto ori = msg->pose.pose.orientation; //ori.x, ori.y, ori.z, ori.w
+        //auto lin = msg->twist.twist.linear; //lin.x, lin.y, lin.z
+        //auto ang = msg->twist.twist.angular; //ang.x, ang.y, ang.z
     }
 
     void publishCmdVel(float lin_x, float ang_z)
@@ -73,6 +78,9 @@ private:
         }
         if(tmpang_z != ang_z) {
             RCLCPP_INFO(this->get_logger(), "Ang_z out of range");
+        }
+        if(count%100 == 0) {
+            RCLCPP_INFO(this->get_logger(), "Lin_x: %f, Ang_z: %f", lin_x, ang_z);
         }
     }
 
@@ -100,12 +108,22 @@ private:
         }
     }
 
+    void publishMatplotlib(float data){
+        auto msg = std_msgs::msg::Float32();
+        msg.data = data;
+        matplotlib_publisher->publish(msg);
+    }
+
     void motionCallback(){
-        //test
         auto start_time = std::chrono::steady_clock::now();
+        count++;
 
         if (state == 1) {
             if(edge_state_1 == false) {
+                if (edge_state_0 == true) {
+                    edge_state_0 = false;
+                    std::cout << "State 0: LEFT" << std::endl;
+                }
                 if (edge_state_2 == true) {
                     edge_state_2 = false;
                     restore_terminal();
@@ -119,17 +137,17 @@ private:
                 std::cout << "State 1: STOP" << std::endl;
             }
             else {
-                if ((linear_x - 0.1) > 0) {
-                    linear_x -= 0.1;
-                } else if ((linear_x + 0.1) < 0) {
-                    linear_x += 0.1;
+                if ((linear_x - 0.05) > 0) {
+                    linear_x -= 0.05;
+                } else if ((linear_x + 0.05) < 0) {
+                    linear_x += 0.05;
                 } else {
                     linear_x = 0.0;
                 }
-                if ((angular_z - 0.1) > 0) {
-                    angular_z -= 0.1;
-                } else if ((angular_z + 0.1) < 0) {
-                    angular_z += 0.1;
+                if ((angular_z - 0.05) > 0) {
+                    angular_z -= 0.05;
+                } else if ((angular_z + 0.05) < 0) {
+                    angular_z += 0.05;
                 } else {
                     angular_z = 0.0;
                 }
@@ -140,6 +158,10 @@ private:
             
         else if (state == 2) {
             if(edge_state_2 == false) {
+                if (edge_state_0 == true) {
+                    edge_state_0 = false;
+                    std::cout << "State 0: LEFT" << std::endl;
+                }
                 if (edge_state_1 == true) {
                     edge_state_1 = false;
                     std::cout << "State 1: LEFT" << std::endl;
@@ -155,9 +177,6 @@ private:
             } 
             else {
                 char c = getch_nonblock();
-                if (c == 0) {
-                    return; // No input, skip processing
-                }
                 switch (c) {
                     case 'w':
                         linear_x += 0.1;
@@ -180,7 +199,7 @@ private:
                         std::cout << "Exiting manual control" << std::endl;
                         return;
                     default:
-                        break; // previously continue;
+                        break;
                 }
                 publishCmdVel(linear_x, angular_z);
             }
@@ -188,6 +207,10 @@ private:
 
         else if (state == 3) {
             if(edge_state_3 == false) {
+                if (edge_state_0 == true) {
+                    edge_state_0 = false;
+                    std::cout << "State 0: LEFT" << std::endl;
+                }
                 if (edge_state_1 == true) {
                     edge_state_1 = false;
                     std::cout << "State 1: LEFT" << std::endl;
@@ -200,25 +223,6 @@ private:
                 std::cout << "State 3: Automatic control" << std::endl;
             }
             else {
-                /*
-                int size = ranges.size();
-                vector<float> x_distance(size);
-                vector<float> y_distance(size);
-                for (int i = 0; i < size; i++) {
-                    if (ranges[i] *here condition that filters*){
-                        x_distance[i] = ranges[i] * cos(angle_min + i * angle_increment);
-                        y_distance[i] = ranges[i] * sin(angle_min + i * angle_increment);
-                    } else {
-                        x_distance[i] = 0.0;
-                        y_distance[i] = 0.0;
-                    }
-                    
-                }
-                for (int i = 0; i < size; i++) {
-                }
-                publishCmdVel(linear_x, angular_z);
-                */
-
                 if (ranges[0] > distance && ranges[14] > distance + 0.3 && ranges[256] > distance + 0.3) {
                     if (ranges[33] > distance || ranges[237] > distance) {
                         if (ranges[0] <= ranges[33]) {
@@ -296,32 +300,49 @@ private:
         }
 
         else if (state == 0) {
-            if(edge_state_1 == true) {
-                edge_state_1 = false;
-                std::cout << "State 1: LEFT" << std::endl;
+            if(edge_state_0 == false) {
+                if(edge_state_1 == true) {
+                    edge_state_1 = false;
+                    std::cout << "State 1: LEFT" << std::endl;
+                }
+                if(edge_state_2 == true) {
+                    edge_state_2 = false;
+                    restore_terminal();
+                    std::cout << "State 2: LEFT" << std::endl;
+                }
+                if(edge_state_3 == true) {
+                    edge_state_3 = false;
+                    std::cout << "State 3: LEFT" << std::endl;
+                }
+                std::cout << "State 0: Hard stop" << std::endl;
+                edge_state_0 = true;
+                linear_x = 0.0;
+                angular_z = 0.0;
             }
-            if(edge_state_2 == true) {
-                edge_state_2 = false;
-                restore_terminal();
-                std::cout << "State 2: LEFT" << std::endl;
+            else{
+                publishCmdVel(linear_x, angular_z);
             }
-            if(edge_state_3 == true) {
-                edge_state_3 = false;
-                std::cout << "State 3: LEFT" << std::endl;
-            }
-            std::cout << "State 0: Hard stop" << std::endl;
-            linear_x = 0.0;
-            angular_z = 0.0;
-            publishCmdVel(linear_x, angular_z);
+            
         }
 
-        //test
         auto end_time = std::chrono::steady_clock::now();
         auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
         if (elapsed_time > 100) { // Assuming the timer period is 100ms
             RCLCPP_WARN(this->get_logger(), "motionCallback is taking too long: %ld ms", elapsed_time);
         }
-
+        
+        // Update orientation
+        theta += (angular_z * elapsed_time * 0.001);
+        // Compute displacement
+        dx = linear_x * std::cos(theta) * (double)elapsed_time*0.001;
+        dy = linear_x * std::sin(theta) * (double)elapsed_time*0.001;
+        // Update position
+        //x += dx;
+        //y += dy;
+        // Update total distance traveled
+        tmpdistance = std::sqrt(dx * dx + dy * dy);
+        total_distance += tmpdistance;
+        publishMatplotlib(total_distance);
     }    
     
     void set_terminal_raw_mode() {
@@ -369,12 +390,14 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_subscriber;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscriber;
     rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_publisher;
+    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr matplotlib_publisher;
     rclcpp::TimerBase::SharedPtr timer;
 
     struct termios orig_termios;
 
-    int state = 0; //this
+    int state = 1;
 
+    bool edge_state_0 = false;
     bool edge_state_1 = false;
     bool edge_state_2 = false;
     bool edge_state_3 = false;
@@ -394,6 +417,14 @@ private:
 
     std::vector<float> ranges;
 
+    bool init_intCallback = true;
+    bool init_scanCallback = true;
+    bool init_odomCallback = true;
+
+    long int count = 0;
+
+    double x, y, dx, dy, theta; // Robot pose
+    double total_distance, tmpdistance;
 };
 
 
@@ -594,3 +625,22 @@ geometry_msgs/TwistWithCovariance twist
                 RCLCPP_INFO(this->get_logger(), "Celebration time: \"%d\"", this->actualState);
             }
             */
+
+/*
+                int size = ranges.size();
+                vector<float> x_distance(size);
+                vector<float> y_distance(size);
+                for (int i = 0; i < size; i++) {
+                    if (ranges[i] *here condition that filters*){
+                        x_distance[i] = ranges[i] * cos(angle_min + i * angle_increment);
+                        y_distance[i] = ranges[i] * sin(angle_min + i * angle_increment);
+                    } else {
+                        x_distance[i] = 0.0;
+                        y_distance[i] = 0.0;
+                    }
+                    
+                }
+                for (int i = 0; i < size; i++) {
+                }
+                publishCmdVel(linear_x, angular_z);
+*/
